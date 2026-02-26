@@ -150,7 +150,10 @@ import java.util.UUID;
 
     sampleCount++;
     if (sampleCount >= LOG_INTERVAL_SAMPLES) {
-      logStats(/* isFinal= */ false);
+      int state = player.getPlaybackState();
+      if (state == Player.STATE_BUFFERING || state == Player.STATE_READY) {
+        logStats(/* isFinal= */ false);
+      }
       sampleCount = 0;
       fpsSamples.clear();
       cpuSamples.clear();
