@@ -6,9 +6,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is the **deprecated** ExoPlayer v2 repository (last release: `2.19.1`). Active development has moved to [AndroidX Media3](https://github.com/androidx/media). New contributions and bug reports should go there.
 
-## Build Commands
+## Build Environment
+
+**Java 17 is required.** Gradle 7.4.2 supports Java 8–17 only; Android Studio's bundled JBR (Java 21) will fail.
 
 ```bash
+export JAVA_HOME="C:/Program Files/Microsoft/jdk-17.0.18.8-hotspot"
+export PATH="$JAVA_HOME/bin:$PATH"
+```
+
+A `local.properties` file must exist at `ExoPlayer/local.properties`:
+```
+sdk.dir=C\:\\Users\\dex\\AppData\\Local\\Android\\Sdk
+```
+
+## Build Commands
+
+All commands run from the `ExoPlayer/` directory with Java 17 set (see above).
+
+```bash
+# Build the demo app (standard flavor — use this, not :demo:assembleDebug)
+./gradlew :demo:assembleNoDecoderExtensionsDebug
+
 # Build all modules
 ./gradlew build
 
@@ -29,12 +48,19 @@ This is the **deprecated** ExoPlayer v2 repository (last release: `2.19.1`). Act
 
 # Build a specific module
 ./gradlew :library-core:assembleRelease
-
-# Build the main demo app
-./gradlew :demo:assembleDebug
 ```
 
-Build output goes to the `buildout/` directory (configured via `gradle.properties`).
+Build output goes to `<module>/buildout/` (configured via `gradle.properties` `buildDir=buildout`).
+
+### Demo APK location
+```
+ExoPlayer/demos/main/buildout/outputs/apk/noDecoderExtensions/debug/demo-noDecoderExtensions-debug.apk
+```
+
+### Demo build flavors
+The `:demo` module has two flavors on the `decoderExtensions` dimension:
+- **`noDecoderExtensions`** — standard build, no pre-built native libs needed. Use this.
+- **`withDecoderExtensions`** — includes av1/ffmpeg/flac/opus/vp9/rtmp extensions; requires pre-built `.so` files not present in this repo.
 
 ## Module Architecture
 
@@ -100,6 +126,19 @@ Extensions live in `extensions/` and are optional add-ons: codec extensions (`av
 - `testutils/` — shared fakes and test helpers (e.g., `FakeMediaSource`, `FakeRenderer`, `ActionSchedule`)
 - `robolectricutils/` — Robolectric-specific helpers
 - `testdata/` — shared test asset files, mounted as assets in test source sets
+
+## Demo App Architecture
+
+The main demo (`demos/main/`) is a standalone app that exercises the full library stack. Key classes:
+
+- **`SampleChooserActivity`** — entry point; loads sample lists from JSON assets and the network
+- **`PlayerActivity`** — hosts playback; wires `ExoPlayer` → `StyledPlayerView`; handles DRM, IMA ads, downloads, and track selection
+- **`DemoUtil`** — factory for `DataSource`, `RenderersFactory`, and `DownloadManager` (singleton pattern)
+- **`DemoDebugTextViewHelper`** — extends `DebugTextViewHelper`; logs a stats block to `ExoDemo` logcat tag every ~10 samples (≈10 s); stats include FPS, CPU, memory, network, media URL, DRM scheme/level, and key server URL; also logs a final block on `STATE_ENDED`/`STATE_IDLE`
+- **`DownloadTracker`** — tracks download state and provides `MediaSource` wrappers for offline playback
+- **`IntentUtil`** — converts deep-link `Intent` extras into `MediaItem` lists
+
+`PlayerActivity` creates `DemoDebugTextViewHelper` in `onStart()` and starts/stops it alongside the player lifecycle.
 
 ## Version / SDK Constants
 

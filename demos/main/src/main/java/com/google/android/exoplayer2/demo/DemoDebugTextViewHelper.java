@@ -134,10 +134,12 @@ import java.util.UUID;
     }
 
     // --- Build display strings ---
-    String fpsStr = buildFpsString(counters, fps);
-    String cpuStr = buildCpuString(cpuPct);
-    String memStr = buildMemString(javaUsedMb, javaTotalMb, nativeUsedMb);
-    String netStr = buildNetString(netSupported, rxKbps, txKbps);
+    String fpsStr   = buildFpsString(counters, fps);
+    String cpuStr   = buildCpuString(cpuPct);
+    String memStr   = buildMemString(javaUsedMb, javaTotalMb, nativeUsedMb);
+    String netStr   = buildNetString(netSupported, rxKbps, txKbps);
+    String mediaStr = buildMediaInfoString();
+    String drmStr   = buildDrmInfoString();
 
     // Update state for next call
     lastRenderedFrameCount = currentFrameCount;
@@ -146,7 +148,7 @@ import java.util.UUID;
     if (txNow != TrafficStats.UNSUPPORTED) lastTxBytes = txNow;
     lastUpdateTimeMs = now;
 
-    return fpsStr + cpuStr + memStr + netStr + super.getDebugString();
+    return fpsStr + cpuStr + memStr + netStr + mediaStr + drmStr + super.getDebugString();
   }
 
   private static String buildFpsString(DecoderCounters counters, float fps) {
@@ -176,6 +178,47 @@ import java.util.UUID;
         ? "Net: --"
         : String.format(Locale.US, "Net: \u2193%.1f KB/s  \u2191%.1f KB/s", rxKbps, txKbps);
     return text + "\n";
+  }
+
+  private String buildMediaInfoString() {
+    Format vf = player.getVideoFormat();
+    Format af = player.getAudioFormat();
+    String videoInfo = vf != null
+        ? vf.sampleMimeType + " " + vf.width + "x" + vf.height
+        : "no video";
+    String audioInfo = af != null
+        ? af.sampleMimeType + " " + af.sampleRate + "Hz " + af.channelCount + "ch"
+        : "no audio";
+    String stateStr;
+    switch (player.getPlaybackState()) {
+      case Player.STATE_BUFFERING: stateStr = "buffering"; break;
+      case Player.STATE_READY:     stateStr = "ready";     break;
+      case Player.STATE_ENDED:     stateStr = "ended";     break;
+      default:                     stateStr = "idle";      break;
+    }
+    long posSec = player.getContentPosition() / 1000;
+    long bufSec = player.getContentBufferedPosition() / 1000;
+    return String.format(Locale.US,
+        "Media: %s | %s | %s | pos=%ds buf=%ds\n",
+        videoInfo, audioInfo, stateStr, posSec, bufSec);
+  }
+
+  private String buildDrmInfoString() {
+    MediaItem currentItem = player.getCurrentMediaItem();
+    if (currentItem == null || currentItem.localConfiguration == null) return "";
+    StringBuilder sb = new StringBuilder();
+    sb.append("URL: ").append(currentItem.localConfiguration.uri).append("\n");
+    MediaItem.DrmConfiguration drmConfig = currentItem.localConfiguration.drmConfiguration;
+    if (drmConfig != null) {
+      String schemeName = getDrmSchemeName(drmConfig.scheme);
+      String secLevel   = querySecurityLevel(drmConfig.scheme);
+      sb.append("DRM: ").append(secLevel.isEmpty() ? schemeName : schemeName + " " + secLevel).append("\n");
+      String keyUrl = drmConfig.licenseUri != null ? drmConfig.licenseUri.toString() : "none";
+      sb.append("Key: ").append(keyUrl).append("\n");
+    } else {
+      sb.append("DRM: none\n");
+    }
+    return sb.toString();
   }
 
   private void logStats(boolean isFinal) {
