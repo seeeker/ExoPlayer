@@ -93,6 +93,7 @@ public class PlayerActivity extends AppCompatActivity
   private boolean isShowingTrackSelectionDialog;
   private Button selectTracksButton;
   private Button stopButton;
+  private Button closeButton;
   private DataSource.Factory dataSourceFactory;
   private List<MediaItem> mediaItems;
   private TrackSelectionParameters trackSelectionParameters;
@@ -138,6 +139,8 @@ public class PlayerActivity extends AppCompatActivity
     selectTracksButton.setOnClickListener(this);
     stopButton = findViewById(R.id.stop_button);
     stopButton.setOnClickListener(this);
+    closeButton = findViewById(R.id.close_button);
+    closeButton.setOnClickListener(this);
 
     playerView = findViewById(R.id.player_view);
     playerView.setControllerVisibilityListener(this);
@@ -271,6 +274,8 @@ public class PlayerActivity extends AppCompatActivity
       trackSelectionDialog.show(getSupportFragmentManager(), /* tag= */ null);
     } else if (view == stopButton && player != null) {
       player.stop();
+    } else if (view == closeButton) {
+      onBackPressed();
     }
   }
 
