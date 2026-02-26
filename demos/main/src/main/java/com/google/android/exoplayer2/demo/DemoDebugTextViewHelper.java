@@ -46,6 +46,10 @@ import java.util.UUID;
   private long lastCpuTimeMs;
   private long lastRxBytes;
   private long lastTxBytes;
+  private long sessionStartRxBytes = -1; // -1 until first valid reading
+  private long sessionStartTxBytes = -1;
+  private long lastSessionRxBytes = 0;
+  private long lastSessionTxBytes = 0;
 
   private int sampleCount = 0;
   private final List<Float> fpsSamples      = new ArrayList<>();
@@ -123,6 +127,14 @@ import java.util.UUID;
     float javaTotalMb = rt.totalMemory() / (1024f * 1024);
     float nativeUsedMb = Debug.getNativeHeapAllocatedSize() / (1024f * 1024);
     boolean netSupported = rxNow != TrafficStats.UNSUPPORTED && txNow != TrafficStats.UNSUPPORTED;
+    if (netSupported && sessionStartRxBytes == -1) {
+      sessionStartRxBytes = rxNow;
+      sessionStartTxBytes = txNow;
+    }
+    if (netSupported) {
+      lastSessionRxBytes = rxNow - sessionStartRxBytes;
+      lastSessionTxBytes = txNow - sessionStartTxBytes;
+    }
     float rxKbps = (netSupported && lastUpdateTimeMs != 0 && elapsedMs > 0)
         ? (rxNow - lastRxBytes) * 1000f / elapsedMs / 1024f : Float.NaN;
     float txKbps = (netSupported && lastUpdateTimeMs != 0 && elapsedMs > 0)
@@ -152,7 +164,7 @@ import java.util.UUID;
     String fpsStr   = buildFpsString(counters, fps);
     String cpuStr   = buildCpuString(cpuPct);
     String memStr   = buildMemString(javaUsedMb, javaTotalMb, nativeUsedMb);
-    String netStr   = buildNetString(netSupported, rxKbps, txKbps);
+    String netStr   = buildNetString(netSupported, rxKbps, txKbps, lastSessionRxBytes, lastSessionTxBytes);
     String mediaStr = buildMediaInfoString();
     String drmStr   = buildDrmInfoString();
 
@@ -185,14 +197,18 @@ import java.util.UUID;
         javaUsedMb, javaTotalMb, nativeUsedMb);
   }
 
-  private static String buildNetString(boolean netSupported, float rxKbps, float txKbps) {
+  private static String buildNetString(
+      boolean netSupported, float rxKbps, float txKbps,
+      long sessionRxBytes, long sessionTxBytes) {
     if (!netSupported) {
       return "";
     }
-    String text = (Float.isNaN(rxKbps) || Float.isNaN(txKbps))
+    String rateStr = (Float.isNaN(rxKbps) || Float.isNaN(txKbps))
         ? "Net: --"
         : String.format(Locale.US, "Net: \u2193%.1f KB/s  \u2191%.1f KB/s", rxKbps, txKbps);
-    return text + "\n";
+    String totalStr = String.format(Locale.US, "  (\u2193%s  \u2191%s)",
+        formatBytes(sessionRxBytes), formatBytes(sessionTxBytes));
+    return rateStr + totalStr + "\n";
   }
 
   private String buildMediaInfoString() {
@@ -299,6 +315,10 @@ import java.util.UUID;
       Log.d(LOG_TAG, "Net \u2193:      " + statsString(rxKbpsSamples, "%.1f") + " KB/s");
     if (!txKbpsSamples.isEmpty())
       Log.d(LOG_TAG, "Net \u2191:      " + statsString(txKbpsSamples, "%.1f") + " KB/s");
+    if (sessionStartRxBytes != -1) {
+      Log.d(LOG_TAG, "Net \u2193 total: " + formatBytes(lastSessionRxBytes));
+      Log.d(LOG_TAG, "Net \u2191 total: " + formatBytes(lastSessionTxBytes));
+    }
     Log.d(LOG_TAG, "================================");
   }
 
@@ -324,6 +344,13 @@ import java.util.UUID;
       cachedSecurityLevel = "";
     }
     return cachedSecurityLevel;
+  }
+
+  private static String formatBytes(long bytes) {
+    if (bytes < 0) return "--";
+    if (bytes >= 1024L * 1024) return String.format(Locale.US, "%.1f MB", bytes / (1024f * 1024));
+    if (bytes >= 1024) return String.format(Locale.US, "%.1f KB", bytes / 1024f);
+    return bytes + " B";
   }
 
   /** Returns "min=X  max=X  mean=X  median=X" for the given samples. */

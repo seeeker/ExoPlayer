@@ -17,6 +17,7 @@ package com.google.android.exoplayer2.demo;
 
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.util.Log;
 import android.os.Build;
 import android.os.Bundle;
 import android.util.Pair;
@@ -71,6 +72,8 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 public class PlayerActivity extends AppCompatActivity
     implements OnClickListener, StyledPlayerView.ControllerVisibilityListener {
 
+  private static final String LOG_TAG = "ExoDemo";
+
   // Saved instance state keys.
 
   private static final String KEY_TRACK_SELECTION_PARAMETERS = "track_selection_parameters";
@@ -86,6 +89,7 @@ public class PlayerActivity extends AppCompatActivity
 
   private boolean isShowingTrackSelectionDialog;
   private Button selectTracksButton;
+  private Button stopButton;
   private DataSource.Factory dataSourceFactory;
   private List<MediaItem> mediaItems;
   private TrackSelectionParameters trackSelectionParameters;
@@ -119,6 +123,8 @@ public class PlayerActivity extends AppCompatActivity
     debugTextView = findViewById(R.id.debug_text_view);
     selectTracksButton = findViewById(R.id.select_tracks_button);
     selectTracksButton.setOnClickListener(this);
+    stopButton = findViewById(R.id.stop_button);
+    stopButton.setOnClickListener(this);
 
     playerView = findViewById(R.id.player_view);
     playerView.setControllerVisibilityListener(this);
@@ -248,6 +254,8 @@ public class PlayerActivity extends AppCompatActivity
               player,
               /* onDismissListener= */ dismissedDialog -> isShowingTrackSelectionDialog = false);
       trackSelectionDialog.show(getSupportFragmentManager(), /* tag= */ null);
+    } else if (view == stopButton && player != null) {
+      player.stop();
     }
   }
 
@@ -270,6 +278,7 @@ public class PlayerActivity extends AppCompatActivity
   protected boolean initializePlayer() {
     if (player == null) {
       Intent intent = getIntent();
+      logAdbLaunchCommand(intent);
 
       mediaItems = createMediaItems(intent);
       if (mediaItems.isEmpty()) {
@@ -455,10 +464,82 @@ public class PlayerActivity extends AppCompatActivity
     startPosition = C.TIME_UNSET;
   }
 
+  private static void logAdbLaunchCommand(Intent intent) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("adb shell am start");
+    sb.append(" \\\n  -n com.google.android.exoplayer2.demo/.PlayerActivity");
+    String action = intent.getAction();
+    sb.append(" \\\n  -a \"").append(action).append("\"");
+    if (IntentUtil.ACTION_VIEW.equals(action)) {
+      if (intent.getData() != null) {
+        sb.append(" \\\n  -d \"").append(intent.getData()).append("\"");
+      }
+      appendItemExtras(sb, intent, "");
+    } else if (IntentUtil.ACTION_VIEW_LIST.equals(action)) {
+      int index = 0;
+      while (intent.hasExtra(IntentUtil.URI_EXTRA + "_" + index)) {
+        String suffix = "_" + index;
+        appendStringExtra(sb, intent, IntentUtil.URI_EXTRA + suffix);
+        appendItemExtras(sb, intent, suffix);
+        index++;
+      }
+    }
+    if (intent.getBooleanExtra(IntentUtil.PREFER_EXTENSION_DECODERS_EXTRA, false)) {
+      sb.append(" \\\n  --ez prefer_extension_decoders true");
+    }
+    Log.d(LOG_TAG, "===== ADB Launch Command =====");
+    Log.d(LOG_TAG, sb.toString());
+    Log.d(LOG_TAG, "==============================");
+  }
+
+  private static void appendItemExtras(StringBuilder sb, Intent intent, String suffix) {
+    appendStringExtra(sb, intent, IntentUtil.TITLE_EXTRA + suffix);
+    appendStringExtra(sb, intent, IntentUtil.MIME_TYPE_EXTRA + suffix);
+    appendStringExtra(sb, intent, IntentUtil.AD_TAG_URI_EXTRA + suffix);
+    appendStringExtra(sb, intent, IntentUtil.DRM_SCHEME_EXTRA + suffix);
+    appendStringExtra(sb, intent, IntentUtil.DRM_LICENSE_URI_EXTRA + suffix);
+    appendBoolExtra(sb, intent, IntentUtil.DRM_SESSION_FOR_CLEAR_CONTENT + suffix);
+    appendBoolExtra(sb, intent, IntentUtil.DRM_MULTI_SESSION_EXTRA + suffix);
+    appendBoolExtra(sb, intent, IntentUtil.DRM_FORCE_DEFAULT_LICENSE_URI_EXTRA + suffix);
+    appendStringArrayExtra(sb, intent, IntentUtil.DRM_KEY_REQUEST_PROPERTIES_EXTRA + suffix);
+    appendStringExtra(sb, intent, IntentUtil.SUBTITLE_URI_EXTRA + suffix);
+    appendStringExtra(sb, intent, IntentUtil.SUBTITLE_MIME_TYPE_EXTRA + suffix);
+    appendStringExtra(sb, intent, IntentUtil.SUBTITLE_LANGUAGE_EXTRA + suffix);
+    appendLongExtra(sb, intent, IntentUtil.CLIP_START_POSITION_MS_EXTRA + suffix, 0);
+    appendLongExtra(sb, intent, IntentUtil.CLIP_END_POSITION_MS_EXTRA + suffix, C.TIME_END_OF_SOURCE);
+  }
+
+  private static void appendStringExtra(StringBuilder sb, Intent intent, String key) {
+    String v = intent.getStringExtra(key);
+    if (v != null) sb.append(" \\\n  -e ").append(key).append(" \"").append(v).append("\"");
+  }
+
+  private static void appendBoolExtra(StringBuilder sb, Intent intent, String key) {
+    if (intent.hasExtra(key) && intent.getBooleanExtra(key, false))
+      sb.append(" \\\n  --ez ").append(key).append(" true");
+  }
+
+  private static void appendLongExtra(StringBuilder sb, Intent intent, String key, long def) {
+    long v = intent.getLongExtra(key, def);
+    if (v != def) sb.append(" \\\n  --el ").append(key).append(" ").append(v);
+  }
+
+  private static void appendStringArrayExtra(StringBuilder sb, Intent intent, String key) {
+    String[] vals = intent.getStringArrayExtra(key);
+    if (vals == null || vals.length == 0) return;
+    sb.append(" \\\n  --esa ").append(key).append(" \"");
+    for (int i = 0; i < vals.length; i++) {
+      if (i > 0) sb.append(",");
+      sb.append(vals[i]);
+    }
+    sb.append("\"");
+  }
+
   // User controls
 
   private void updateButtonVisibility() {
     selectTracksButton.setEnabled(player != null && TrackSelectionDialog.willHaveContent(player));
+    stopButton.setEnabled(player != null);
   }
 
   private void showControls() {
