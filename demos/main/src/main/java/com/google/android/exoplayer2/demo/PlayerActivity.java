@@ -290,7 +290,7 @@ public class PlayerActivity extends AppCompatActivity
       player.setPlayWhenReady(startAutoPlay);
       playerView.setPlayer(player);
       configurePlayerWithServerSideAdsLoader();
-      debugViewHelper = new DebugTextViewHelper(player, debugTextView);
+      debugViewHelper = new DemoDebugTextViewHelper(player, debugTextView);
       debugViewHelper.start();
     }
     boolean haveStartPosition = startItemIndex != C.INDEX_UNSET;
