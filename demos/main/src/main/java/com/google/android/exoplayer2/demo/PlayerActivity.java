@@ -15,7 +15,10 @@
  */
 package com.google.android.exoplayer2.demo;
 
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.util.Log;
 import android.os.Build;
@@ -111,6 +114,16 @@ public class PlayerActivity extends AppCompatActivity
   private ImaServerSideAdInsertionMediaSource.AdsLoader.@MonotonicNonNull State
       serverSideAdsLoaderState;
 
+  private final BroadcastReceiver stopReceiver = new BroadcastReceiver() {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+      if (IntentUtil.ACTION_STOP.equals(intent.getAction())) {
+        releasePlayer();
+        finish();
+      }
+    }
+  };
+
   // Activity lifecycle.
 
   @Override
@@ -157,6 +170,7 @@ public class PlayerActivity extends AppCompatActivity
   @Override
   public void onStart() {
     super.onStart();
+    registerReceiver(stopReceiver, new IntentFilter(IntentUtil.ACTION_STOP));
     if (Build.VERSION.SDK_INT > 23) {
       initializePlayer();
       if (playerView != null) {
@@ -190,6 +204,7 @@ public class PlayerActivity extends AppCompatActivity
   @Override
   public void onStop() {
     super.onStop();
+    unregisterReceiver(stopReceiver);
     if (Build.VERSION.SDK_INT > 23) {
       if (playerView != null) {
         playerView.onPause();
