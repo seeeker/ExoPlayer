@@ -33,11 +33,13 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import org.json.JSONObject;
 
 /** Extends DebugTextViewHelper to prepend live FPS, CPU, memory, and network metrics. */
 /* package */ final class DemoDebugTextViewHelper extends DebugTextViewHelper {
 
   private static final String LOG_TAG = "ExoDemo";
+  private static final String JSON_TAG = "ExoDemoJSON";
   private static final int LOG_INTERVAL_SAMPLES = 10;
 
   private final ExoPlayer player;
@@ -323,6 +325,102 @@ import java.util.UUID;
       Log.d(LOG_TAG, "Net \u2191 total: " + formatBytes(lastSessionTxBytes));
     }
     Log.d(LOG_TAG, "================================");
+    logStatsJson(isFinal);
+  }
+
+  private void logStatsJson(boolean isFinal) {
+    try {
+      JSONObject json = new JSONObject();
+      json.put("type", isFinal ? "final" : "interval");
+
+      // media
+      JSONObject media = new JSONObject();
+      Format vf = player.getVideoFormat();
+      Format af = player.getAudioFormat();
+      if (vf == null) {
+        media.put("video", JSONObject.NULL);
+      } else if (vf.frameRate != Format.NO_VALUE) {
+        media.put("video", String.format(Locale.US, "%s %dx%d @%.2ffps",
+            vf.sampleMimeType, vf.width, vf.height, vf.frameRate));
+      } else {
+        media.put("video", vf.sampleMimeType + " " + vf.width + "x" + vf.height);
+      }
+      media.put("audio", af != null
+          ? af.sampleMimeType + " " + af.sampleRate + "Hz " + af.channelCount + "ch"
+          : JSONObject.NULL);
+      String stateStr;
+      switch (player.getPlaybackState()) {
+        case Player.STATE_BUFFERING: stateStr = "buffering"; break;
+        case Player.STATE_READY:     stateStr = "ready";     break;
+        case Player.STATE_ENDED:     stateStr = "ended";     break;
+        default:                     stateStr = "idle";      break;
+      }
+      media.put("state", stateStr);
+      media.put("pos_s", player.getContentPosition() / 1000);
+      media.put("buf_s", player.getContentBufferedPosition() / 1000);
+      json.put("media", media);
+
+      // URL + DRM
+      MediaItem currentItem = player.getCurrentMediaItem();
+      if (currentItem != null && currentItem.localConfiguration != null) {
+        json.put("url", currentItem.localConfiguration.uri.toString());
+        MediaItem.DrmConfiguration drmConfig = currentItem.localConfiguration.drmConfiguration;
+        if (drmConfig != null) {
+          String schemeName = getDrmSchemeName(drmConfig.scheme);
+          String secLevel   = querySecurityLevel(drmConfig.scheme);
+          json.put("drm", secLevel.isEmpty() ? schemeName : schemeName + " " + secLevel);
+          json.put("key_server", drmConfig.licenseUri != null
+              ? drmConfig.licenseUri.toString() : JSONObject.NULL);
+        } else {
+          json.put("drm", "none");
+        }
+      }
+
+      // per-metric stats (key omitted when no samples)
+      json.put("fps",           statsJson(fpsSamples));
+      json.put("cpu_pct",       statsJson(cpuSamples));
+      json.put("mem_java_mb",   statsJson(javaMemSamples));
+      json.put("mem_native_mb", statsJson(nativeMemSamples));
+      json.put("net_rx_kbps",   statsJson(rxKbpsSamples));
+      json.put("net_tx_kbps",   statsJson(txKbpsSamples));
+      if (sessionStartRxBytes != -1) {
+        json.put("net_rx_total_bytes", lastSessionRxBytes);
+        json.put("net_tx_total_bytes", lastSessionTxBytes);
+      }
+
+      Log.d(JSON_TAG, json.toString());
+    } catch (Exception e) {
+      // ignore — JSON logging is best-effort
+    }
+  }
+
+  private static JSONObject statsJson(List<Float> samples) {
+    if (samples.isEmpty()) return null;
+    try {
+      List<Float> sorted = new ArrayList<>(samples);
+      Collections.sort(sorted);
+      float min = sorted.get(0);
+      float max = sorted.get(sorted.size() - 1);
+      float sum = 0;
+      for (float v : samples) sum += v;
+      float mean = sum / samples.size();
+      int n = sorted.size();
+      float median = (n % 2 == 1)
+          ? sorted.get(n / 2)
+          : (sorted.get(n / 2 - 1) + sorted.get(n / 2)) / 2f;
+      JSONObject obj = new JSONObject();
+      obj.put("min",    round2(min));
+      obj.put("max",    round2(max));
+      obj.put("mean",   round2(mean));
+      obj.put("median", round2(median));
+      return obj;
+    } catch (Exception e) {
+      return null;
+    }
+  }
+
+  private static double round2(float v) {
+    return Math.round(v * 100.0) / 100.0;
   }
 
   private static String getDrmSchemeName(UUID uuid) {
