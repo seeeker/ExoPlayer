@@ -79,6 +79,21 @@ import java.util.UUID;
     player.addListener(finalSummaryListener);
   }
 
+  /** Logs final stats and removes the summary listener. Call before stop(). */
+  /* package */ void flush() {
+    if (sampleCount > 0) {
+      logStats(/* isFinal= */ true);
+      sampleCount = 0;
+      fpsSamples.clear();
+      cpuSamples.clear();
+      javaMemSamples.clear();
+      nativeMemSamples.clear();
+      rxKbpsSamples.clear();
+      txKbpsSamples.clear();
+    }
+    player.removeListener(finalSummaryListener);
+  }
+
   @Override
   protected String getDebugString() {
     long now = android.os.SystemClock.elapsedRealtime();
@@ -183,9 +198,15 @@ import java.util.UUID;
   private String buildMediaInfoString() {
     Format vf = player.getVideoFormat();
     Format af = player.getAudioFormat();
-    String videoInfo = vf != null
-        ? vf.sampleMimeType + " " + vf.width + "x" + vf.height
-        : "no video";
+    String videoInfo;
+    if (vf == null) {
+      videoInfo = "no video";
+    } else if (vf.frameRate != Format.NO_VALUE) {
+      videoInfo = String.format(Locale.US, "%s %dx%d @%.2ffps",
+          vf.sampleMimeType, vf.width, vf.height, vf.frameRate);
+    } else {
+      videoInfo = vf.sampleMimeType + " " + vf.width + "x" + vf.height;
+    }
     String audioInfo = af != null
         ? af.sampleMimeType + " " + af.sampleRate + "Hz " + af.channelCount + "ch"
         : "no audio";
@@ -224,9 +245,15 @@ import java.util.UUID;
   private void logStats(boolean isFinal) {
     Format vf = player.getVideoFormat();
     Format af = player.getAudioFormat();
-    String videoInfo = vf != null
-        ? vf.sampleMimeType + " " + vf.width + "x" + vf.height
-        : "no video";
+    String videoInfo;
+    if (vf == null) {
+      videoInfo = "no video";
+    } else if (vf.frameRate != Format.NO_VALUE) {
+      videoInfo = String.format(Locale.US, "%s %dx%d @%.2ffps",
+          vf.sampleMimeType, vf.width, vf.height, vf.frameRate);
+    } else {
+      videoInfo = vf.sampleMimeType + " " + vf.width + "x" + vf.height;
+    }
     String audioInfo = af != null
         ? af.sampleMimeType + " " + af.sampleRate + "Hz " + af.channelCount + "ch"
         : "no audio";

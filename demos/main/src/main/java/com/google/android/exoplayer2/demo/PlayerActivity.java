@@ -392,6 +392,7 @@ public class PlayerActivity extends AppCompatActivity
       updateTrackSelectorParameters();
       updateStartPosition();
       releaseServerSideAdsLoader();
+      ((DemoDebugTextViewHelper) debugViewHelper).flush();
       debugViewHelper.stop();
       debugViewHelper = null;
       player.release();

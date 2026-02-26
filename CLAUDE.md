@@ -134,7 +134,7 @@ The main demo (`demos/main/`) is a standalone app that exercises the full librar
 - **`SampleChooserActivity`** — entry point; loads sample lists from JSON assets and the network
 - **`PlayerActivity`** — hosts playback; wires `ExoPlayer` → `StyledPlayerView`; handles DRM, IMA ads, downloads, and track selection
 - **`DemoUtil`** — factory for `DataSource`, `RenderersFactory`, and `DownloadManager` (singleton pattern)
-- **`DemoDebugTextViewHelper`** — extends `DebugTextViewHelper`; logs a stats block to `ExoDemo` logcat tag every ~10 samples (≈10 s); stats include FPS, CPU, memory, network, media URL, DRM scheme/level, and key server URL; also logs a final block on `STATE_ENDED`/`STATE_IDLE`
+- **`DemoDebugTextViewHelper`** — extends `DebugTextViewHelper`; on every 1 s refresh, prepends FPS, CPU, memory, network, media format/state/position, URL, DRM scheme/level, and key server URL to the on-screen overlay; also logs a `ExoDemo`-tagged logcat stats block (min/max/mean/median per metric) every ~10 samples and a final block on `STATE_ENDED`/`STATE_IDLE`
 - **`DownloadTracker`** — tracks download state and provides `MediaSource` wrappers for offline playback
 - **`IntentUtil`** — converts deep-link `Intent` extras into `MediaItem` lists
 
