@@ -108,9 +108,11 @@ import org.json.JSONObject;
     // Snapshot all cumulative counters before computing strings
     DecoderCounters counters = player.getVideoDecoderCounters();
     long currentFrameCount = 0;
+    long totalDropped = 0;
     if (counters != null) {
       counters.ensureUpdated();
       currentFrameCount = counters.renderedOutputBufferCount;
+      totalDropped = counters.droppedBufferCount;
     }
     long cpuNow = Process.getElapsedCpuTime();
     int uid = Process.myUid();
@@ -166,7 +168,7 @@ import org.json.JSONObject;
     }
 
     // --- Build display strings ---
-    String fpsStr   = buildFpsString(counters, fps);
+    String fpsStr   = buildFpsString(counters, fps, currentFrameCount, totalDropped);
     String cpuStr   = buildCpuString(cpuPct);
     String memStr   = buildMemString(javaUsedMb, javaTotalMb, nativeUsedMb);
     String netStr   = buildNetString(netSupported, rxKbps, txKbps, lastSessionRxBytes, lastSessionTxBytes);
@@ -183,11 +185,16 @@ import org.json.JSONObject;
     return fpsStr + cpuStr + memStr + netStr + mediaStr + drmStr + super.getDebugString();
   }
 
-  private static String buildFpsString(DecoderCounters counters, float fps) {
+  private static String buildFpsString(
+      DecoderCounters counters, float fps, long played, long totalDropped) {
     if (counters == null) {
       return "";
     }
     String text = Float.isNaN(fps) ? "FPS: --" : String.format(Locale.US, "FPS: %.1f", fps);
+    text += String.format(Locale.US, "  played: %d", played);
+    if (totalDropped > 0) {
+      text += String.format(Locale.US, "  drop: %d", totalDropped);
+    }
     return text + "\n";
   }
 
@@ -312,6 +319,13 @@ import org.json.JSONObject;
 
     if (!fpsSamples.isEmpty())
       Log.d(LOG_TAG, "FPS:        " + statsString(fpsSamples, "%.1f"));
+    DecoderCounters vc = player.getVideoDecoderCounters();
+    if (vc != null) {
+      vc.ensureUpdated();
+      Log.d(LOG_TAG, "Played:     " + vc.renderedOutputBufferCount + " frames (total)");
+      if (vc.droppedBufferCount > 0)
+        Log.d(LOG_TAG, "Dropped:    " + vc.droppedBufferCount + " frames (total)");
+    }
     if (!cpuSamples.isEmpty())
       Log.d(LOG_TAG, "CPU:        " + statsString(cpuSamples, "%.1f") + " %");
     Log.d(LOG_TAG, "Mem java:   " + statsString(javaMemSamples, "%.0f") + " MB");
@@ -378,6 +392,12 @@ import org.json.JSONObject;
 
       // per-metric stats (key omitted when no samples)
       json.put("fps",           statsJson(fpsSamples));
+      DecoderCounters vc2 = player.getVideoDecoderCounters();
+      if (vc2 != null) {
+        vc2.ensureUpdated();
+        json.put("played_frames_total", vc2.renderedOutputBufferCount);
+        json.put("dropped_frames_total", vc2.droppedBufferCount);
+      }
       json.put("cpu_pct",       statsJson(cpuSamples));
       json.put("mem_java_mb",   statsJson(javaMemSamples));
       json.put("mem_native_mb", statsJson(nativeMemSamples));
