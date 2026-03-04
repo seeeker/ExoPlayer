@@ -78,6 +78,10 @@ public class IntentUtil {
   public static final String SUBTITLE_MIME_TYPE_EXTRA = "subtitle_mime_type";
   public static final String SUBTITLE_LANGUAGE_EXTRA = "subtitle_language";
 
+  // Track selection extras. Values: "None", "Auto", or a representation id string.
+  public static final String VIDEO_TRACK_EXTRA = "video_track";
+  public static final String AUDIO_TRACK_EXTRA = "audio_track";
+
   /** Creates a list of {@link MediaItem media items} from an {@link Intent}. */
   public static List<MediaItem> createMediaItemsFromIntent(Intent intent) {
     List<MediaItem> mediaItems = new ArrayList<>();

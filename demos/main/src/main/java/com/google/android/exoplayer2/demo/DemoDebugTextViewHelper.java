@@ -21,12 +21,15 @@ import android.os.Debug;
 import android.os.Process;
 import android.util.Log;
 import android.widget.TextView;
+import androidx.annotation.Nullable;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlayer;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
 import com.google.android.exoplayer2.Player;
+import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.decoder.DecoderCounters;
+import com.google.android.exoplayer2.decoder.DecoderReuseEvaluation;
 import com.google.android.exoplayer2.util.DebugTextViewHelper;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -36,7 +39,8 @@ import java.util.UUID;
 import org.json.JSONObject;
 
 /** Extends DebugTextViewHelper to prepend live FPS, CPU, memory, and network metrics. */
-/* package */ final class DemoDebugTextViewHelper extends DebugTextViewHelper {
+/* package */ final class DemoDebugTextViewHelper extends DebugTextViewHelper
+    implements AnalyticsListener {
 
   private static final String LOG_TAG = "ExoDemo";
   private static final String JSON_TAG = "ExoDemoJSON";
@@ -63,6 +67,9 @@ import org.json.JSONObject;
 
   private String cachedSecurityLevel = null; // null = not yet queried; "" = unavailable
 
+  @Nullable private Format lastSelectedVideoFormat = null;
+  @Nullable private Format lastSelectedAudioFormat = null;
+
   private final Player.Listener finalSummaryListener = new Player.Listener() {
     @Override
     public void onPlaybackStateChanged(int state) {
@@ -83,6 +90,7 @@ import org.json.JSONObject;
     super(player, textView);
     this.player = player;
     player.addListener(finalSummaryListener);
+    player.addAnalyticsListener(this);
   }
 
   /** Logs final stats and removes the summary listener. Call before stop(). */
@@ -98,6 +106,47 @@ import org.json.JSONObject;
       txKbpsSamples.clear();
     }
     player.removeListener(finalSummaryListener);
+    player.removeAnalyticsListener(this);
+  }
+
+  @Override
+  public void onVideoInputFormatChanged(EventTime eventTime, Format format,
+      @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
+    lastSelectedVideoFormat = format;
+    Log.d(LOG_TAG, "Selected video: " + buildRepresentationString(format));
+  }
+
+  @Override
+  public void onAudioInputFormatChanged(EventTime eventTime, Format format,
+      @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
+    lastSelectedAudioFormat = format;
+    Log.d(LOG_TAG, "Selected audio: " + buildRepresentationString(format));
+  }
+
+  private static String buildRepresentationString(Format f) {
+    StringBuilder sb = new StringBuilder();
+    if (f.sampleMimeType != null) sb.append(f.sampleMimeType);
+    if (f.width != Format.NO_VALUE)     sb.append("  ").append(f.width).append("x").append(f.height);
+    if (f.frameRate != Format.NO_VALUE) sb.append(String.format(Locale.US, "@%.2ffps", f.frameRate));
+    if (f.sampleRate != Format.NO_VALUE)
+      sb.append("  ").append(f.sampleRate).append("Hz ").append(f.channelCount).append("ch");
+    if (f.bitrate != Format.NO_VALUE)
+      sb.append(String.format(Locale.US, "  bitrate=%d", f.bitrate));
+    if (f.codecs != null)  sb.append("  codecs=").append(f.codecs);
+    if (f.id != null)      sb.append("  id=").append(f.id);
+    return sb.toString();
+  }
+
+  private static JSONObject buildRepresentationJson(Format f) throws Exception {
+    JSONObject o = new JSONObject();
+    if (f.sampleMimeType != null) o.put("mime", f.sampleMimeType);
+    if (f.width != Format.NO_VALUE)     { o.put("width", f.width); o.put("height", f.height); }
+    if (f.frameRate != Format.NO_VALUE) o.put("fps", round2(f.frameRate));
+    if (f.sampleRate != Format.NO_VALUE){ o.put("sample_rate", f.sampleRate); o.put("channels", f.channelCount); }
+    if (f.bitrate != Format.NO_VALUE)   o.put("bitrate", f.bitrate);
+    if (f.codecs != null)  o.put("codecs", f.codecs);
+    if (f.id != null)      o.put("id", f.id);
+    return o;
   }
 
   @Override
@@ -299,6 +348,10 @@ import org.json.JSONObject;
     Log.d(LOG_TAG, header);
     Log.d(LOG_TAG, String.format(Locale.US,
         "Media: %s | %s | %s | pos=%ds buf=%ds", videoInfo, audioInfo, stateStr, posSec, bufSec));
+    if (lastSelectedVideoFormat != null)
+      Log.d(LOG_TAG, "Video repr: " + buildRepresentationString(lastSelectedVideoFormat));
+    if (lastSelectedAudioFormat != null)
+      Log.d(LOG_TAG, "Audio repr: " + buildRepresentationString(lastSelectedAudioFormat));
 
     // --- DRM + URL info ---
     MediaItem currentItem = player.getCurrentMediaItem();
@@ -373,6 +426,10 @@ import org.json.JSONObject;
       media.put("pos_s", player.getContentPosition() / 1000);
       media.put("buf_s", player.getContentBufferedPosition() / 1000);
       json.put("media", media);
+      if (lastSelectedVideoFormat != null)
+        json.put("selected_video", buildRepresentationJson(lastSelectedVideoFormat));
+      if (lastSelectedAudioFormat != null)
+        json.put("selected_audio", buildRepresentationJson(lastSelectedAudioFormat));
 
       // URL + DRM
       MediaItem currentItem = player.getCurrentMediaItem();

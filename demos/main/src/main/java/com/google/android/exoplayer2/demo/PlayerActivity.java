@@ -50,7 +50,9 @@ import com.google.android.exoplayer2.mediacodec.MediaCodecUtil.DecoderQueryExcep
 import com.google.android.exoplayer2.offline.DownloadRequest;
 import com.google.android.exoplayer2.source.DefaultMediaSourceFactory;
 import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.ads.AdsLoader;
+import com.google.android.exoplayer2.trackselection.TrackSelectionOverride;
 import com.google.android.exoplayer2.trackselection.TrackSelectionParameters;
 import com.google.android.exoplayer2.ui.StyledPlayerView;
 import com.google.android.exoplayer2.upstream.DataSource;
@@ -91,6 +93,8 @@ public class PlayerActivity extends AppCompatActivity
   protected @Nullable ExoPlayer player;
 
   private boolean isShowingTrackSelectionDialog;
+  @Nullable private String pendingVideoTrackId = null;
+  @Nullable private String pendingAudioTrackId = null;
   private Button selectTracksButton;
   private Button stopButton;
   private Button closeButton;
@@ -300,6 +304,8 @@ public class PlayerActivity extends AppCompatActivity
       Intent intent = getIntent();
       logAdbLaunchCommand(intent);
 
+      applyTrackSelectionExtras(intent);
+
       mediaItems = createMediaItems(intent);
       if (mediaItems.isEmpty()) {
         return false;
@@ -507,6 +513,8 @@ public class PlayerActivity extends AppCompatActivity
     if (intent.getBooleanExtra(IntentUtil.PREFER_EXTENSION_DECODERS_EXTRA, false)) {
       sb.append(" \\\n  --ez prefer_extension_decoders true");
     }
+    appendStringExtra(sb, intent, IntentUtil.VIDEO_TRACK_EXTRA);
+    appendStringExtra(sb, intent, IntentUtil.AUDIO_TRACK_EXTRA);
     Log.d(LOG_TAG, "===== ADB Launch Command =====");
     Log.d(LOG_TAG, sb.toString());
     Log.d(LOG_TAG, "==============================");
@@ -555,6 +563,62 @@ public class PlayerActivity extends AppCompatActivity
     sb.append("\"");
   }
 
+  private void applyTrackSelectionExtras(Intent intent) {
+    @Nullable String videoTrack = intent.getStringExtra(IntentUtil.VIDEO_TRACK_EXTRA);
+    @Nullable String audioTrack = intent.getStringExtra(IntentUtil.AUDIO_TRACK_EXTRA);
+    if (videoTrack == null && audioTrack == null) return;
+    TrackSelectionParameters.Builder builder = trackSelectionParameters.buildUpon();
+    if ("none".equalsIgnoreCase(videoTrack)) {
+      builder.setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true);
+    } else if ("auto".equalsIgnoreCase(videoTrack)) {
+      builder.setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, false).clearOverridesOfType(C.TRACK_TYPE_VIDEO);
+    } else if (videoTrack != null) {
+      pendingVideoTrackId = videoTrack;
+    }
+    if ("none".equalsIgnoreCase(audioTrack)) {
+      builder.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, true);
+    } else if ("auto".equalsIgnoreCase(audioTrack)) {
+      builder.setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false).clearOverridesOfType(C.TRACK_TYPE_AUDIO);
+    } else if (audioTrack != null) {
+      pendingAudioTrackId = audioTrack;
+    }
+    trackSelectionParameters = builder.build();
+  }
+
+  private void applyPendingTrackOverrides(Tracks tracks) {
+    if (pendingVideoTrackId == null && pendingAudioTrackId == null) return;
+    if (player == null) return;
+    TrackSelectionParameters.Builder builder = player.getTrackSelectionParameters().buildUpon();
+    boolean changed = false;
+    if (pendingVideoTrackId != null) {
+      changed |= applyTrackIdOverride(builder, tracks, C.TRACK_TYPE_VIDEO, pendingVideoTrackId);
+      pendingVideoTrackId = null;
+    }
+    if (pendingAudioTrackId != null) {
+      changed |= applyTrackIdOverride(builder, tracks, C.TRACK_TYPE_AUDIO, pendingAudioTrackId);
+      pendingAudioTrackId = null;
+    }
+    if (changed) {
+      player.setTrackSelectionParameters(builder.build());
+    }
+  }
+
+  private static boolean applyTrackIdOverride(
+      TrackSelectionParameters.Builder builder, Tracks tracks, int trackType, String trackId) {
+    for (Tracks.Group group : tracks.getGroups()) {
+      if (group.getType() != trackType) continue;
+      TrackGroup mediaGroup = group.getMediaTrackGroup();
+      for (int i = 0; i < mediaGroup.length; i++) {
+        if (trackId.equals(mediaGroup.getFormat(i).id)) {
+          builder.setOverrideForType(new TrackSelectionOverride(mediaGroup, i));
+          return true;
+        }
+      }
+    }
+    Log.w(LOG_TAG, "Track id not found: " + trackId + " (trackType=" + trackType + ")");
+    return false;
+  }
+
   // User controls
 
   private void updateButtonVisibility() {
@@ -599,6 +663,7 @@ public class PlayerActivity extends AppCompatActivity
     @SuppressWarnings("ReferenceEquality")
     public void onTracksChanged(Tracks tracks) {
       updateButtonVisibility();
+      applyPendingTrackOverrides(tracks);
       if (tracks == lastSeenTracks) {
         return;
       }
