@@ -30,6 +30,8 @@ import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.decoder.DecoderCounters;
 import com.google.android.exoplayer2.decoder.DecoderReuseEvaluation;
+import com.google.android.exoplayer2.source.LoadEventInfo;
+import com.google.android.exoplayer2.source.MediaLoadData;
 import com.google.android.exoplayer2.util.DebugTextViewHelper;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,6 +71,9 @@ import org.json.JSONObject;
 
   @Nullable private Format lastSelectedVideoFormat = null;
   @Nullable private Format lastSelectedAudioFormat = null;
+
+  @Nullable private String lastVideoSegmentUrl = null;
+  @Nullable private String lastAudioSegmentUrl = null;
 
   private final Player.Listener finalSummaryListener = new Player.Listener() {
     @Override
@@ -110,17 +115,31 @@ import org.json.JSONObject;
   }
 
   @Override
+  public void onLoadStarted(EventTime eventTime, LoadEventInfo loadEventInfo,
+      MediaLoadData mediaLoadData) {
+    if (mediaLoadData.dataType != C.DATA_TYPE_MEDIA) return;
+    String url = loadEventInfo.uri.toString();
+    if (mediaLoadData.trackType == C.TRACK_TYPE_VIDEO) {
+      lastVideoSegmentUrl = url;
+    } else if (mediaLoadData.trackType == C.TRACK_TYPE_AUDIO) {
+      lastAudioSegmentUrl = url;
+    }
+  }
+
+  @Override
   public void onVideoInputFormatChanged(EventTime eventTime, Format format,
       @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
     lastSelectedVideoFormat = format;
-    Log.d(LOG_TAG, "Selected video: " + buildRepresentationString(format));
+    Log.d(LOG_TAG, "Selected video: " + buildRepresentationString(format)
+        + (lastVideoSegmentUrl != null ? "  seg=" + lastVideoSegmentUrl : ""));
   }
 
   @Override
   public void onAudioInputFormatChanged(EventTime eventTime, Format format,
       @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
     lastSelectedAudioFormat = format;
-    Log.d(LOG_TAG, "Selected audio: " + buildRepresentationString(format));
+    Log.d(LOG_TAG, "Selected audio: " + buildRepresentationString(format)
+        + (lastAudioSegmentUrl != null ? "  seg=" + lastAudioSegmentUrl : ""));
   }
 
   private static String buildRepresentationString(Format f) {
@@ -352,6 +371,10 @@ import org.json.JSONObject;
       Log.d(LOG_TAG, "Video repr: " + buildRepresentationString(lastSelectedVideoFormat));
     if (lastSelectedAudioFormat != null)
       Log.d(LOG_TAG, "Audio repr: " + buildRepresentationString(lastSelectedAudioFormat));
+    if (lastVideoSegmentUrl != null)
+      Log.d(LOG_TAG, "Video seg:  " + lastVideoSegmentUrl);
+    if (lastAudioSegmentUrl != null)
+      Log.d(LOG_TAG, "Audio seg:  " + lastAudioSegmentUrl);
 
     // --- DRM + URL info ---
     MediaItem currentItem = player.getCurrentMediaItem();
@@ -430,6 +453,8 @@ import org.json.JSONObject;
         json.put("selected_video", buildRepresentationJson(lastSelectedVideoFormat));
       if (lastSelectedAudioFormat != null)
         json.put("selected_audio", buildRepresentationJson(lastSelectedAudioFormat));
+      if (lastVideoSegmentUrl != null) json.put("video_seg_url", lastVideoSegmentUrl);
+      if (lastAudioSegmentUrl != null) json.put("audio_seg_url", lastAudioSegmentUrl);
 
       // URL + DRM
       MediaItem currentItem = player.getCurrentMediaItem();
