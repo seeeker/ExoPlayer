@@ -113,14 +113,20 @@ import org.json.JSONObject;
   public void onVideoInputFormatChanged(EventTime eventTime, Format format,
       @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
     lastSelectedVideoFormat = format;
-    Log.d(LOG_TAG, "Selected video: " + buildRepresentationString(format));
+    Log.d(LOG_TAG, "Selected video: " + buildRepresentationString(format) + "  url=" + currentUrl());
   }
 
   @Override
   public void onAudioInputFormatChanged(EventTime eventTime, Format format,
       @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
     lastSelectedAudioFormat = format;
-    Log.d(LOG_TAG, "Selected audio: " + buildRepresentationString(format));
+    Log.d(LOG_TAG, "Selected audio: " + buildRepresentationString(format) + "  url=" + currentUrl());
+  }
+
+  private String currentUrl() {
+    MediaItem item = player.getCurrentMediaItem();
+    return (item != null && item.localConfiguration != null)
+        ? item.localConfiguration.uri.toString() : "unknown";
   }
 
   private static String buildRepresentationString(Format f) {

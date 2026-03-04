@@ -177,7 +177,11 @@ public class PlayerActivity extends AppCompatActivity
   @Override
   public void onStart() {
     super.onStart();
-    registerReceiver(stopReceiver, new IntentFilter(IntentUtil.ACTION_STOP));
+    if (Build.VERSION.SDK_INT >= 33) {
+      registerReceiver(stopReceiver, new IntentFilter(IntentUtil.ACTION_STOP), Context.RECEIVER_EXPORTED);
+    } else {
+      registerReceiver(stopReceiver, new IntentFilter(IntentUtil.ACTION_STOP));
+    }
     if (Build.VERSION.SDK_INT > 23) {
       initializePlayer();
       if (playerView != null) {
