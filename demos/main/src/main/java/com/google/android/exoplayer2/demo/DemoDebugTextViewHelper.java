@@ -74,6 +74,7 @@ import org.json.JSONObject;
 
   @Nullable private String lastVideoSegmentUrl = null;
   @Nullable private String lastAudioSegmentUrl = null;
+  @Nullable private String lastEncScheme = null;
 
   private final Player.Listener finalSummaryListener = new Player.Listener() {
     @Override
@@ -130,6 +131,9 @@ import org.json.JSONObject;
   public void onVideoInputFormatChanged(EventTime eventTime, Format format,
       @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
     lastSelectedVideoFormat = format;
+    if (format.drmInitData != null && format.drmInitData.schemeType != null) {
+      lastEncScheme = format.drmInitData.schemeType;
+    }
     Log.d(LOG_TAG, "Selected video: " + buildRepresentationString(format)
         + (lastVideoSegmentUrl != null ? "  seg=" + lastVideoSegmentUrl : ""));
   }
@@ -329,7 +333,9 @@ import org.json.JSONObject;
     if (drmConfig != null) {
       String schemeName = getDrmSchemeName(drmConfig.scheme);
       String secLevel   = querySecurityLevel(drmConfig.scheme);
-      sb.append("DRM: ").append(secLevel.isEmpty() ? schemeName : schemeName + " " + secLevel).append("\n");
+      String drmLabel = secLevel.isEmpty() ? schemeName : schemeName + " " + secLevel;
+      if (lastEncScheme != null) drmLabel += " (" + lastEncScheme + ")";
+      sb.append("DRM: ").append(drmLabel).append("\n");
       String keyUrl = drmConfig.licenseUri != null ? drmConfig.licenseUri.toString() : "none";
       sb.append("Key: ").append(keyUrl).append("\n");
     } else {
@@ -384,7 +390,8 @@ import org.json.JSONObject;
       if (drmConfig != null) {
         String schemeName = getDrmSchemeName(drmConfig.scheme);
         String secLevel   = querySecurityLevel(drmConfig.scheme);
-        String drmLine    = secLevel.isEmpty() ? schemeName : schemeName + " " + secLevel;
+        String drmLine = secLevel.isEmpty() ? schemeName : schemeName + " " + secLevel;
+        if (lastEncScheme != null) drmLine += " (" + lastEncScheme + ")";
         Log.d(LOG_TAG, "DRM:       " + drmLine);
         String keyUrl = drmConfig.licenseUri != null ? drmConfig.licenseUri.toString() : "none";
         Log.d(LOG_TAG, "Key server:" + keyUrl);
@@ -465,6 +472,7 @@ import org.json.JSONObject;
           String schemeName = getDrmSchemeName(drmConfig.scheme);
           String secLevel   = querySecurityLevel(drmConfig.scheme);
           json.put("drm", secLevel.isEmpty() ? schemeName : schemeName + " " + secLevel);
+          if (lastEncScheme != null) json.put("enc_scheme", lastEncScheme);
           json.put("key_server", drmConfig.licenseUri != null
               ? drmConfig.licenseUri.toString() : JSONObject.NULL);
         } else {
