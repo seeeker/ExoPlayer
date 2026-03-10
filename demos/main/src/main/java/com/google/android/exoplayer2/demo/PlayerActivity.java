@@ -27,6 +27,7 @@ import android.util.Pair;
 import android.view.KeyEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -54,12 +55,14 @@ import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.ads.AdsLoader;
 import com.google.android.exoplayer2.trackselection.TrackSelectionOverride;
 import com.google.android.exoplayer2.trackselection.TrackSelectionParameters;
+import com.google.android.exoplayer2.ui.AspectRatioFrameLayout;
 import com.google.android.exoplayer2.ui.StyledPlayerView;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.util.DebugTextViewHelper;
 import com.google.android.exoplayer2.util.ErrorMessageProvider;
 import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Util;
+import com.google.android.exoplayer2.video.VideoSize;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -93,6 +96,7 @@ public class PlayerActivity extends AppCompatActivity
   protected @Nullable ExoPlayer player;
 
   private boolean isShowingTrackSelectionDialog;
+  private boolean noScaling;
   @Nullable private String pendingVideoTrackId = null;
   @Nullable private String pendingAudioTrackId = null;
   private Button selectTracksButton;
@@ -315,6 +319,7 @@ public class PlayerActivity extends AppCompatActivity
       ExoPlayer.Builder playerBuilder =
           new ExoPlayer.Builder(/* context= */ this)
               .setMediaSourceFactory(createMediaSourceFactory());
+      noScaling = intent.getBooleanExtra(IntentUtil.NO_SCALING_EXTRA, false);
       setRenderersFactory(
           playerBuilder, intent.getBooleanExtra(IntentUtil.PREFER_EXTENSION_DECODERS_EXTRA, false));
       player = playerBuilder.build();
@@ -513,6 +518,9 @@ public class PlayerActivity extends AppCompatActivity
     if (intent.getBooleanExtra(IntentUtil.PREFER_EXTENSION_DECODERS_EXTRA, false)) {
       sb.append(" \\\n  --ez prefer_extension_decoders true");
     }
+    if (intent.getBooleanExtra(IntentUtil.NO_SCALING_EXTRA, false)) {
+      sb.append(" \\\n  --ez no_scaling true");
+    }
     appendStringExtra(sb, intent, IntentUtil.VIDEO_TRACK_EXTRA);
     appendStringExtra(sb, intent, IntentUtil.AUDIO_TRACK_EXTRA);
     Log.d(LOG_TAG, "===== ADB Launch Command =====");
@@ -639,6 +647,18 @@ public class PlayerActivity extends AppCompatActivity
   }
 
   private class PlayerEventListener implements Player.Listener {
+
+    @Override
+    public void onVideoSizeChanged(VideoSize videoSize) {
+      if (!noScaling || videoSize.width == 0 || videoSize.height == 0) {
+        return;
+      }
+      playerView.setResizeMode(AspectRatioFrameLayout.RESIZE_MODE_FILL);
+      ViewGroup.LayoutParams lp = playerView.getLayoutParams();
+      lp.width = videoSize.width;
+      lp.height = videoSize.height;
+      playerView.setLayoutParams(lp);
+    }
 
     @Override
     public void onPlaybackStateChanged(@Player.State int playbackState) {
