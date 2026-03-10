@@ -331,6 +331,10 @@ public class PlayerActivity extends AppCompatActivity
       playerView.setPlayer(player);
       configurePlayerWithServerSideAdsLoader();
       debugViewHelper = new DemoDebugTextViewHelper(player, debugTextView);
+      String note = intent.getStringExtra(IntentUtil.NOTE_EXTRA);
+      if (note != null) {
+        ((DemoDebugTextViewHelper) debugViewHelper).setNote(note);
+      }
       debugViewHelper.start();
     }
     boolean haveStartPosition = startItemIndex != C.INDEX_UNSET;
@@ -520,6 +524,10 @@ public class PlayerActivity extends AppCompatActivity
     }
     if (intent.getBooleanExtra(IntentUtil.NO_SCALING_EXTRA, false)) {
       sb.append(" \\\n  --ez no_scaling true");
+    }
+    String noteExtra = intent.getStringExtra(IntentUtil.NOTE_EXTRA);
+    if (noteExtra != null) {
+      sb.append(" \\\n  --es note \"").append(noteExtra).append("\"");
     }
     appendStringExtra(sb, intent, IntentUtil.VIDEO_TRACK_EXTRA);
     appendStringExtra(sb, intent, IntentUtil.AUDIO_TRACK_EXTRA);

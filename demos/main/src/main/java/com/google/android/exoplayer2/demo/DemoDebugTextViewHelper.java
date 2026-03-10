@@ -76,6 +76,7 @@ import org.json.JSONObject;
   @Nullable private String lastVideoSegmentUrl = null;
   @Nullable private String lastAudioSegmentUrl = null;
   @Nullable private String lastEncScheme = null;
+  @Nullable private String note = null;
 
   private final Player.Listener finalSummaryListener = new Player.Listener() {
     @Override
@@ -98,6 +99,10 @@ import org.json.JSONObject;
     this.player = player;
     player.addListener(finalSummaryListener);
     player.addAnalyticsListener(this);
+  }
+
+  public void setNote(@Nullable String note) {
+    this.note = note;
   }
 
   /** Logs final stats and removes the summary listener. Call before stop(). */
@@ -266,7 +271,8 @@ import org.json.JSONObject;
     if (txNow != TrafficStats.UNSUPPORTED) lastTxBytes = txNow;
     lastUpdateTimeMs = now;
 
-    return fpsStr + cpuStr + memStr + netStr + mediaStr + drmStr + super.getDebugString();
+    String noteStr = (note != null) ? "Note: " + note + "\n" : "";
+    return noteStr + fpsStr + cpuStr + memStr + netStr + mediaStr + drmStr + super.getDebugString();
   }
 
   private static String buildFpsString(
@@ -383,6 +389,9 @@ import org.json.JSONObject;
 
     String header = isFinal ? "===== Final Playback Stats =====" : "===== ~10s Playback Stats =====";
     Log.d(LOG_TAG, header);
+    if (note != null) {
+      Log.d(LOG_TAG, "Note:       " + note);
+    }
     Log.d(LOG_TAG, String.format(Locale.US,
         "Media: %s | %s | %s | pos=%ds buf=%ds", videoInfo, audioInfo, stateStr, posSec, bufSec));
     if (lastSelectedVideoFormat != null)
@@ -441,6 +450,9 @@ import org.json.JSONObject;
     try {
       JSONObject json = new JSONObject();
       json.put("type", isFinal ? "final" : "interval");
+      if (note != null) {
+        json.put("note", note);
+      }
 
       // media
       JSONObject media = new JSONObject();
