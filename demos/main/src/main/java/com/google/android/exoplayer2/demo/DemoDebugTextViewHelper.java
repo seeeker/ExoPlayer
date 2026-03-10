@@ -33,6 +33,7 @@ import com.google.android.exoplayer2.decoder.DecoderReuseEvaluation;
 import com.google.android.exoplayer2.source.LoadEventInfo;
 import com.google.android.exoplayer2.source.MediaLoadData;
 import com.google.android.exoplayer2.util.DebugTextViewHelper;
+import com.google.android.exoplayer2.util.MimeTypes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -131,8 +132,19 @@ import org.json.JSONObject;
   public void onVideoInputFormatChanged(EventTime eventTime, Format format,
       @Nullable DecoderReuseEvaluation decoderReuseEvaluation) {
     lastSelectedVideoFormat = format;
-    if (format.drmInitData != null && format.drmInitData.schemeType != null) {
-      lastEncScheme = format.drmInitData.schemeType;
+    if (format.drmInitData != null) {
+      if (format.drmInitData.schemeType != null) {
+        lastEncScheme = format.drmInitData.schemeType;
+      } else {
+        // WebM containers have no scheme_type field; MatroskaExtractor stamps SchemeData
+        // with VIDEO_WEBM. WebM only supports AES-CTR (cenc-equivalent), so infer "cenc".
+        for (int i = 0; i < format.drmInitData.schemeDataCount; i++) {
+          if (MimeTypes.VIDEO_WEBM.equals(format.drmInitData.get(i).mimeType)) {
+            lastEncScheme = "cenc";
+            break;
+          }
+        }
+      }
     }
     Log.d(LOG_TAG, "Selected video: " + buildRepresentationString(format)
         + (lastVideoSegmentUrl != null ? "  seg=" + lastVideoSegmentUrl : ""));
