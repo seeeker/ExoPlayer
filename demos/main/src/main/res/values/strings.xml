@@ -61,4 +61,7 @@
 
   <string name="prefer_extension_decoders">Prefer extension decoders</string>
 
+  <string name="hide_overlay">Hide overlay</string>
+  <string name="show_overlay">Show overlay</string>
+
 </resources>

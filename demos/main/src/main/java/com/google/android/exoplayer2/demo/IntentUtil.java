@@ -58,6 +58,7 @@ public class IntentUtil {
   public static final String PREFER_EXTENSION_DECODERS_EXTRA = "prefer_extension_decoders";
   public static final String NO_SCALING_EXTRA = "no_scaling";
   public static final String NOTE_EXTRA = "note";
+  public static final String HIDE_OVERLAY_EXTRA = "hide_overlay";
 
   // Media item configuration extras.
 

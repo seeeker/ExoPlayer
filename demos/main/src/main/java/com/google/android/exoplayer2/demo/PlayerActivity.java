@@ -102,6 +102,8 @@ public class PlayerActivity extends AppCompatActivity
   private Button selectTracksButton;
   private Button stopButton;
   private Button closeButton;
+  private Button toggleOverlayButton;
+  private boolean overlayVisible = true;
   private DataSource.Factory dataSourceFactory;
   private List<MediaItem> mediaItems;
   private TrackSelectionParameters trackSelectionParameters;
@@ -149,6 +151,8 @@ public class PlayerActivity extends AppCompatActivity
     stopButton.setOnClickListener(this);
     closeButton = findViewById(R.id.close_button);
     closeButton.setOnClickListener(this);
+    toggleOverlayButton = findViewById(R.id.toggle_overlay_button);
+    toggleOverlayButton.setOnClickListener(this);
 
     playerView = findViewById(R.id.player_view);
     playerView.setControllerVisibilityListener(this);
@@ -284,6 +288,8 @@ public class PlayerActivity extends AppCompatActivity
       player.stop();
     } else if (view == closeButton) {
       onBackPressed();
+    } else if (view == toggleOverlayButton) {
+      setOverlayVisible(!overlayVisible);
     }
   }
 
@@ -336,6 +342,9 @@ public class PlayerActivity extends AppCompatActivity
         ((DemoDebugTextViewHelper) debugViewHelper).setNote(note);
       }
       debugViewHelper.start();
+      if (intent.getBooleanExtra(IntentUtil.HIDE_OVERLAY_EXTRA, false)) {
+        setOverlayVisible(false);
+      }
     }
     boolean haveStartPosition = startItemIndex != C.INDEX_UNSET;
     if (haveStartPosition) {
@@ -525,6 +534,9 @@ public class PlayerActivity extends AppCompatActivity
     if (intent.getBooleanExtra(IntentUtil.NO_SCALING_EXTRA, false)) {
       sb.append(" \\\n  --ez no_scaling true");
     }
+    if (intent.getBooleanExtra(IntentUtil.HIDE_OVERLAY_EXTRA, false)) {
+      sb.append(" \\\n  --ez hide_overlay true");
+    }
     String noteExtra = intent.getStringExtra(IntentUtil.NOTE_EXTRA);
     if (noteExtra != null) {
       sb.append(" \\\n  --es note \"").append(noteExtra).append("\"");
@@ -644,6 +656,12 @@ public class PlayerActivity extends AppCompatActivity
 
   private void showControls() {
     debugRootView.setVisibility(View.VISIBLE);
+  }
+
+  private void setOverlayVisible(boolean visible) {
+    overlayVisible = visible;
+    debugTextView.setVisibility(visible ? View.VISIBLE : View.GONE);
+    toggleOverlayButton.setText(visible ? R.string.hide_overlay : R.string.show_overlay);
   }
 
   private void showToast(int messageId) {
